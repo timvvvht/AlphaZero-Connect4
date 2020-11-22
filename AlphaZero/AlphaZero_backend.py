@@ -11,10 +11,10 @@ class AlphaZeroConfig:
     def __init__(self):
         # Self-Play
         self.num_sampling_moves = 8  # moves until agent stops softmax-sampling moves
-        self.num_simulations = 150  # trained on 30 sims / move ; AlphaZero used 800 simulations
+        self.num_simulations = 500  # trained on 30 sims / move ; AlphaZero used 800 simulations
 
         # Root prior exploration noise.
-        self.root_dirichlet_alpha = 0.2  # for training; 0 for competitive mode
+        self.root_dirichlet_alpha = 0 # for training; 0 for competitive mode
         self.root_exploration_fraction = 0.25  # controls exploration-exploitation
 
         # UCB formula

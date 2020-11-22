@@ -1,9 +1,6 @@
 import pygame
 import sys
 from AlphaZero.AlphaZero_backend import Game, AlphaZeroConfig, ResNet
-from Agents import *
-from DQNAgent import DQNAgent
-from ValueAgent import *
 from AlphaZero.Pit import AgentZeroCompetitive
 from AlphaZero.AlphaZeroMCTS import *
 
@@ -39,10 +36,18 @@ def draw_board(game):
     pygame.display.update()
 
 
+class HumanPlayer:
+    def move(self, game):
+        col = int(input('Columns 1-7'))
+        game.apply(col-1)
+        return game
+
+
 game_over = False
-weights = r'/Users/timwu/models/AlphaZeroResNet/920__loss_3.475420832633972.h5'
-player1 = HumanPlayer()
-player2 = AgentZeroCompetitive(config=AlphaZeroConfig(), net=ResNet(weights), mcts=True)
+weights1 = r'/Users/timwu/models/AlphaZeroResNet/920__loss_3.475420832633972.h5'
+weights2 = r'/Users/timwu/models/AlphaZeroResNet/episode_700__winrate_100.0_loss_3.5536495447158813.h5'
+player1 = AgentZeroCompetitive(config=AlphaZeroConfig(), net=ResNet(weights1), mcts=True)
+player2 = AgentZeroCompetitive(config=AlphaZeroConfig(), net=ResNet(weights2), mcts=True)
 
 pygame.init()
 draw_board(game)
