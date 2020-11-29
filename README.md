@@ -5,14 +5,14 @@ An asynchronous implementation of the AlphaZero algorithm based on the [AlphaZer
 AlphaZero is an algorithm that trains a reinforcement learning agent through self-play. The training examples are states of games, while the 'ground truth' labels are value of a state and policy (probability distribution of actions) of a state. 
 
 AlphaZero uses a [modified version](https://github.com/timvvvht/AlphaZero-Connect4/blob/main/AlphaZero/AlphaZeroMCTS.py)
-of the Monte Carlo Tree Search (MCTS) that uses the trained network to predict values of states rather than performing rollouts upon traversing to a leaf node. 
+of the Monte Carlo Tree Search (MCTS) which uses the trained network to predict values of states rather than performing rollouts upon traversing to a leaf node. 
 
 ## Training
-Training is done with a multiprocessing, asynchronous approach demonstrated [here](https://github.com/timvvvht/AlphaZero-Connect4/blob/main/AlphaZeroTrainMultiprocessing.py).
+Training was done with a multiprocessing, asynchronous approach demonstrated [here](https://github.com/timvvvht/AlphaZero-Connect4/blob/main/AlphaZeroTrainMultiprocessing.py).
 
 The agent was trained for 1 week, and was able to defeat the one-step-look-ahead agent consistently very quickly (at around 3000 epochs). 
 
-I then tested the agent against myself. While it was difficult to beat, it is not unbeatable, and as Connect4 is a solved game, this agent should theoretically be able to converge to an optimal policy. I increased the memory buffer size and started training on it again. Future updates will be reported.
+I then tested the agent against myself. While it was difficult to beat, it is not unbeatable, and as Connect4 is a solved game, this agent should theoretically be able to converge to an optimal policy. I then increased the memory buffer size and started training on it again. Future updates will be reported.
 
 
 ## Codebase
