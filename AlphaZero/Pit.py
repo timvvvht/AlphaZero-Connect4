@@ -121,4 +121,4 @@ class AgentZeroCompetitive:
 
             action = np.argmax(prob)
         game.apply(action)
-        return game
+        return game.clone()

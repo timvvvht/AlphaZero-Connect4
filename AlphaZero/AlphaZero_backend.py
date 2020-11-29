@@ -10,11 +10,11 @@ class AlphaZeroConfig:
 
     def __init__(self):
         # Self-Play
-        self.num_sampling_moves = 8  # moves until agent stops softmax-sampling moves
-        self.num_simulations = 500  # trained on 30 sims / move ; AlphaZero used 800 simulations
+        self.num_sampling_moves = 4  # moves until agent stops sampling moves; 0 when competitive; orig trained on 8
+        self.num_simulations = 50  # trained on 30 sims / move ; AlphaZero used 800 simulations
 
         # Root prior exploration noise.
-        self.root_dirichlet_alpha = 0 # for training; 0 for competitive mode
+        self.root_dirichlet_alpha = 0.2  # 0.2 for training; 0.05 for competitive mode
         self.root_exploration_fraction = 0.25  # controls exploration-exploitation
 
         # UCB formula
@@ -22,14 +22,14 @@ class AlphaZeroConfig:
         self.pb_c_init = 1.25
 
         # Training
-        self.window_size = 500  # num training examples to keep in rolling memory
+        self.window_size = 50000  # num training examples to keep in rolling memory
         self.batch_size = 4096  # takes in 4096 training examples of X, Y : state_image, (state_val, state_policy)
 
 
 class ReplayBuffer:
     def __init__(self, config=None):
         self.batch_size = 4096
-        self.buffer = deque(maxlen=500)
+        self.buffer = list()
         if config is not None:
             self.batch_size = config.batch_size
             self.buffer = deque(maxlen=config.window_size)
@@ -40,9 +40,21 @@ class ReplayBuffer:
     def sample_batch(self):
         num_examples = len(self.buffer)
 
+        # makes it more likely that longer games will be selected, with game length as a proxy for skill
+        game_len = np.array([len(g.history) for g in self.buffer])
+        mean_game_len = np.mean(game_len)
+
+        print(f'Mean Game Len: {mean_game_len}')
+
+        move_sum = float(np.sum(game_len))
+
+        prob = np.array([(len(g.history) / move_sum) for g in self.buffer])
+
+        for idx in np.argwhere(game_len > mean_game_len):
+            prob[idx] *= 5  # 5x more likely to be selected if game len more than mean 
+
         # make it more likely that newer examples will be selected
-        prob = np.ones(num_examples)
-        prob[-int(num_examples*0.2):] *= 4
+        prob[-int(num_examples*0.2):] *= 5
         prob /= sum(prob)
 
         games = np.random.choice(self.buffer, size=self.batch_size,
@@ -67,7 +79,23 @@ class ReplayBuffer:
             target_vs.append(target_v)
             target_ps.append(target_p)
             # batch.append((image, target_v, target_p))
-        batch = [np.array(images), np.array(target_vs), np.array(target_ps)]
+
+        # Process duplicate images
+        images = np.array(images)
+        target_vs = np.array(target_vs)
+        target_ps = np.array(target_ps)
+        images_str = [str(i) for i in images]
+        unique = set(images_str)
+        for i in unique:
+            idx = np.where(np.array(images_str) == i)[0]
+
+            mean_v = np.mean(target_vs[idx])
+            target_vs[idx] = mean_v
+
+            mean_p = np.mean(target_ps[idx], axis=0)
+            target_ps[idx] = mean_p
+
+        batch = [images, target_vs, target_ps]
         return batch
 
 
@@ -241,10 +269,10 @@ class Game:
         return input_image
 
     def make_target(self, state_index: int):
-        discount_rate = 0.9
+        #discount_rate = 0.9
         # discount based on distance from terminal state
-        move_dist = (len(self.history) - state_index)/2
-        value = self.terminal_value(state_index % 2) * discount_rate ** move_dist
+        #move_dist = (len(self.history) - state_index)/2
+        value = self.terminal_value(state_index % 2) # * discount_rate ** move_dist
         return value, self.child_visits[state_index]
 
     @property
@@ -271,21 +299,31 @@ class Game:
 
         diags = diags_lr + diags_rl
         diags = [i for i in diags if len(i) >= window_len]
-        diags = [np.delete(i, np.where(i == 0)) for i in diags]
 
         _all = rows + columns + diags
-        try:
-            winner = [i for i in _all if len(i) == 4 and (i == i[0]).all() and i[0] != 0][0][0]
-        except:
-            winner = 0
-        return winner
+
+        for i in _all:
+            winner = Game.check_consec(i)
+            if winner != 0:
+                return winner
+        return 0
+
+    @staticmethod
+    def check_consec(array):
+        consec = []
+        for i in array:
+            if len(consec) == 0 or i == consec[-1]:
+                consec.append(i)
+            else:
+                consec = [i]
+            if len(consec) == 4:
+                return consec[-1]
+        return 0
 
 
 
 
-
-
-    # @classmethod
+        # @classmethod
     # def check_win_horiz(cls, board):
     #     winner = None
     #     win_con = 4

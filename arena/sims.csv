@@ -1,0 +1,9 @@
+Model,<Agents.RandomAgent object at 0x122633910>,<Agents.SmartRandomAgent object at 0x1226330d0>,<Agents.MCTS_Agent object at 0x122633a90>,<Agents.MCTS_Agent object at 0x122633340>
+models/StateEvalAgent_40000_episodes_vs_SmartRandAgent/5000___180.00avg.model,68.0,24.0,26.0,28.000000000000004
+models/StateEvalAgent_40000_episodes_vs_SmartRandAgent/10000___370.00avg.model,78.0,54.0,50.0,32.0
+models/StateEvalAgent_40000_episodes_vs_SmartRandAgent/15000___460.00avg.model,80.0,52.0,50.0,42.0
+models/StateEvalAgent_40000_episodes_vs_SmartRandAgent/20000___540.00avg.model,82.0,56.00000000000001,64.0,38.0
+models/StateEvalAgent_40000_episodes_vs_SmartRandAgent/25000___580.00avg.model,90.0,62.0,60.0,44.0
+models/StateEvalAgent_40000_episodes_vs_SmartRandAgent/30000___620.00avg.model,94.0,64.0,52.0,44.0
+models/StateEvalAgent_40000_episodes_vs_SmartRandAgent/35000___620.00avg.model,94.0,68.0,62.0,52.0
+models/StateEvalAgent_40000_episodes_vs_SmartRandAgent/40000___690.00avg.model,92.0,44.0,46.0,42.0
