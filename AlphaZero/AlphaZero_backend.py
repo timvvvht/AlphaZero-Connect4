@@ -11,10 +11,10 @@ class AlphaZeroConfig:
     def __init__(self):
         # Self-Play
         self.num_sampling_moves = 4  # moves until agent stops sampling moves; 0 when competitive; orig trained on 8
-        self.num_simulations = 50  # trained on 30 sims / move ; AlphaZero used 800 simulations
+        self.num_simulations = 30  # trained on 30 sims / move ; AlphaZero used 800 simulations
 
         # Root prior exploration noise.
-        self.root_dirichlet_alpha = 0.2  # 0.2 for training; 0.05 for competitive mode
+        self.root_dirichlet_alpha = 0.2
         self.root_exploration_fraction = 0.25  # controls exploration-exploitation
 
         # UCB formula
@@ -37,7 +37,7 @@ class ReplayBuffer:
     def save_game(self, game):
         self.buffer.append(game)
 
-    def sample_batch(self):
+    def sample_batch(self, long_game_multiplier):
         num_examples = len(self.buffer)
 
         # makes it more likely that longer games will be selected, with game length as a proxy for skill
@@ -48,17 +48,16 @@ class ReplayBuffer:
 
         move_sum = float(np.sum(game_len))
 
-        prob = np.array([(len(g.history) / move_sum) for g in self.buffer])
+        prob = game_len / move_sum
 
         for idx in np.argwhere(game_len > mean_game_len):
-            prob[idx] *= 5  # 5x more likely to be selected if game len more than mean 
+            prob[idx] *= long_game_multiplier  # more likely to be selected if game len more than mean
 
         # make it more likely that newer examples will be selected
         prob[-int(num_examples*0.2):] *= 5
         prob /= sum(prob)
 
-        games = np.random.choice(self.buffer, size=self.batch_size,
-                                 p=prob)
+        games = np.random.choice(self.buffer, size=self.batch_size, p=prob)
         game_pos = [(g, np.random.randint(len(g.history))) for g in games]
         # batch = []
         images = []
@@ -70,7 +69,7 @@ class ReplayBuffer:
             target_v = np.array(target_v, dtype=np.float32)  # .reshape(-1, 1)
             target_p = np.array(target_p, dtype=np.float32)
 
-            # Augment Data to take advantage of the vertical symmetry of Connect4
+            # Augment Data randomly to take advantage of the vertical symmetry of Connect4
             if np.random.random() < 0.5:
                 image = np.fliplr(image)
                 target_p = np.flip(target_p)
@@ -96,8 +95,13 @@ class ReplayBuffer:
             target_ps[idx] = mean_p
 
         batch = [images, target_vs, target_ps]
-        return batch
+        del unique
+        del images_str
+        del game_pos
+        del games
+        del prob
 
+        return batch
 
 class ResNet:
     def __init__(self, weights=None):
@@ -162,6 +166,29 @@ class ResNet:
         value, policy_logits = self.model.predict(x)
         prob = tf.nn.softmax(policy_logits)
         return np.squeeze(value), np.squeeze(prob)
+
+
+class Ensemble(ResNet):
+    def __init__(self, *weights):
+        super().__init__()
+        self.weights = weights
+        self.models = [self.create_model() for _ in self.weights]
+        for m, w in zip(self.models, self.weights):
+            m.load_weights(w)
+
+    def inference(self, x):
+        if len(x.shape) != 4:
+            x = np.expand_dims(x, axis=0)
+
+        value = 0.
+        policy = np.zeros(self.columns)
+        for model in self.models:
+            v, p = model.predict(x)
+            value += v
+            policy += np.squeeze(p)
+        value /= len(self.models)
+        prob = tf.nn.softmax(policy)
+        return np.squeeze(value), prob
 
 class Game:
     '''
@@ -260,7 +287,6 @@ class Game:
         to_play = len(self.history[:state_index]) % 2
         to_play_matrix = np.ones((self.rows, self.columns))
         if to_play != 0:
-            #to_play_matrix = -to_play_matrix
             state = state*-1
             state[state == -0] = 0
         curr_player_binary = np.array(state == to_play_matrix, dtype='float32')
@@ -269,10 +295,10 @@ class Game:
         return input_image
 
     def make_target(self, state_index: int):
-        #discount_rate = 0.9
+        discount_rate = 0.999
         # discount based on distance from terminal state
-        #move_dist = (len(self.history) - state_index)/2
-        value = self.terminal_value(state_index % 2) # * discount_rate ** move_dist
+        move_dist = (len(self.history) - state_index)/2
+        value = self.terminal_value(state_index % 2) * discount_rate ** move_dist
         return value, self.child_visits[state_index]
 
     @property
@@ -320,62 +346,3 @@ class Game:
                 return consec[-1]
         return 0
 
-
-
-
-        # @classmethod
-    # def check_win_horiz(cls, board):
-    #     winner = None
-    #     win_con = 4
-    #     for row in board:
-    #         consecutive = []
-    #
-    #         for col in row:
-    #             if len(consecutive) == 0:
-    #                 consecutive = [col]
-    #             elif consecutive[-1] == col:
-    #                 consecutive.append(col)
-    #             else:
-    #                 consecutive = [col]
-    #             if len(consecutive) == win_con and consecutive[0] != 0:
-    #                 winner = consecutive[0]
-    #     return winner
-    #
-    # @classmethod
-    # def check_win_vert(cls, board):
-    #     winner = None
-    #     win_con = 4
-    #     for row in board.T:
-    #         consecutive = []
-    #         for col in row:
-    #             if len(consecutive) == 0:
-    #                 consecutive = [col]
-    #             elif consecutive[-1] == col:
-    #                 consecutive.append(col)
-    #             else:
-    #                 consecutive = [col]
-    #             if len(consecutive) == win_con and consecutive[0] != 0:
-    #                 winner = consecutive[0]
-    #     return winner
-    #
-    # @classmethod
-    # def check_win_diag(cls, board):
-    #     winner = None
-    #     win_con = 4
-    #     diags_lr = [board[::-1, :].diagonal(i) for i in range(-board.shape[0] + 1, board.shape[1])]
-    #     board_flip = np.fliplr(board)
-    #     diags_rl = [board_flip[::-1, :].diagonal(i) for i in range(-board.shape[0] + 1, board.shape[1])]
-    #     diags = diags_lr + diags_rl
-    #     for diag in diags:
-    #         if len(diag) >= 4:
-    #             consecutive = []
-    #             for d in diag:
-    #                 if len(consecutive) == 0:
-    #                     consecutive = [d]
-    #                 elif consecutive[-1] == d:
-    #                     consecutive.append(d)
-    #                 else:
-    #                     consecutive = [d]
-    #                 if len(consecutive) == win_con and consecutive[0] != 0:
-    #                     winner = consecutive[0]
-    #     return winner

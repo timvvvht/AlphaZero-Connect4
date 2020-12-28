@@ -106,8 +106,9 @@ class AgentZeroCompetitive:
         self.config = config
         self.net = net
         self.config.num_sampling_moves = 0
-        self.config.root_exploration_fraction = 0
+        # self.config.root_exploration_fraction = 0
         self.mcts = mcts
+        self.config.root_dirichlet_alpha = 0.00
 
     def move(self, game):
         if self.mcts:
@@ -121,4 +122,4 @@ class AgentZeroCompetitive:
 
             action = np.argmax(prob)
         game.apply(action)
-        return game.clone()
+        return game

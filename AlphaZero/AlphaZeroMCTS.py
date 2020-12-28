@@ -33,7 +33,7 @@ def run_mcts(config, game, network, add_noise=True):
         add_exploration_noise(config, root)
 
     for i in range(config.num_simulations):
-        #print(f'sim{i}')
+        # print(f'sim{i}')
         node = root
         scratch_game = game.clone()
         search_path = [node]

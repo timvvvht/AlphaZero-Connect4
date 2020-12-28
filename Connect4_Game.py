@@ -1,6 +1,6 @@
 import pygame
 import sys
-from AlphaZero.AlphaZero_backend import Game, AlphaZeroConfig, ResNet
+from AlphaZero.AlphaZero_backend import Game, AlphaZeroConfig, ResNet, Ensemble
 from AlphaZero.Pit import AgentZeroCompetitive
 from AlphaZero.AlphaZeroMCTS import *
 import time
@@ -55,12 +55,15 @@ if __name__ == '__main__':
 
 
     game_over = False
-    # weights1 = r'/Users/timwu/models/AlphaZeroResNet/920__loss_3.475420832633972.h5'
-    # weights1 = r'/Users/timwu/models/AlphaZeroResNet/1200__loss_3.5479825735092163.h5'
-    weights1 = r'/Users/timwu/Connect4/models/episode_1260_inputdims_4_winrate_100.0_.h5'
-    weights2 = r'/Users/timwu/models/AlphaZeroResNet/episode_700__winrate_100.0_loss_3.5536495447158813.h5'
-    player1 = HumanPlayer()  #AgentZeroCompetitive(config=AlphaZeroConfig(), net=ResNet(weights1), mcts=True)
-    player2 = AgentZeroCompetitive(config=AlphaZeroConfig(), net=ResNet(weights1), mcts=True)
+
+    weights1 = r'/Users/timwu/models/AlphaZeroResNet/episode_150__winrate_92.0_loss_7.96225106716156.h5'
+    weights2 = r'/Users/timwu/models/AlphaZeroResNet/240__loss_6.979812860488892.h5'
+    weights3 = r'/Users/timwu/models/AlphaZeroResNet/2850.h5'
+    weights4 = r'/Users/timwu/models/AlphaZeroResNet/run3_ep_2760_lr_0.000047_wr_100.0_loss_4.1702.h5'
+    ensemble = Ensemble(weights1, weights2, weights3, weights4)
+
+    player1 = AgentZeroCompetitive(config=AlphaZeroConfig(), net=ensemble, mcts=True)
+    player2 = HumanPlayer()  #AgentZeroCompetitive(config=AlphaZeroConfig(), net=ResNet(weights2), mcts=True)
 
     pygame.init()
     draw_board(game)
@@ -76,7 +79,7 @@ if __name__ == '__main__':
 
             if game.terminal is True:
                 print(game)
-                print(f'Winner is Player {game.to_play}')
+                print(f'Winner is Player 1')
                 draw_board(game)
                 game_over = True
 
@@ -85,11 +88,11 @@ if __name__ == '__main__':
             game = player2.move(game)
             if game.terminal is True:
                 print(game)
-                print(f'Winner is Player {game.to_play}')
+                print(f'Winner is Player 2')
                 draw_board(game)
                 game_over = True
 
         draw_board(game)
-        print(f'{game_over=}')
+        # print(f'{game_over=}')
         if game_over:
             pygame.time.wait(5000)

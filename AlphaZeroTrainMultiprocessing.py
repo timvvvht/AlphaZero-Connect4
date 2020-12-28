@@ -6,12 +6,12 @@ from AlphaZero.Pit import AgentZeroCompetitive, Pit, SmartRandomAgent
 from tqdm import tqdm
 import os
 import time
-from ctypes import c_int, c_bool, c_double
+from ctypes import c_int, c_bool
 import pickle
+
 
 def selfplay(games, weights):
     network = ResNet()
-    #if weights[0] is not None:
     if type(weights[0]) == str:
         network.model.load_weights(weights[0])
     try:
@@ -21,15 +21,13 @@ def selfplay(games, weights):
 
     game = Game()
     config = AlphaZeroConfig()
+
     while not game.terminal:
         action, root = run_mcts(config, game, network)
         game.apply(action)
         game.store_search_statistics(root)
     games.append(game)
-
     return
-
-
 
 def selfplay_worker(games, weights, switch):
     while switch.value is True:
@@ -46,10 +44,7 @@ def pit(network):
     return pit.p1_winrate
 
 def train_network(buffer, weights, games, episode, winrate_list, switch):
-    #while episode.value < 2002:
     switch.value = True
-
-    
 
     for _ in tqdm(range(3000)):
         print(f'New Games: {len(games)}')
@@ -62,7 +57,10 @@ def train_network(buffer, weights, games, episode, winrate_list, switch):
                     buffer.save_game(game)
                 except IndexError:
                     pass
-            max_len = 5000
+
+            max_len = 2000
+            if episode.value > 500:
+                max_len = 5000
             if episode.value > 1000:
                 max_len = 10000
             if episode.value > 2000:
@@ -71,7 +69,7 @@ def train_network(buffer, weights, games, episode, winrate_list, switch):
             while len(buffer.buffer) > max_len:
                 buffer.buffer.pop(0)
 
-            print(f'Epoch : {episode.value}, generating batch on {len(buffer.buffer)} games')
+            print(f'Episode : {episode.value}, generating batch on {len(buffer.buffer)} games')
             print(time.ctime(time.time()))
 
             # Instantiates network and load weights
@@ -87,90 +85,76 @@ def train_network(buffer, weights, games, episode, winrate_list, switch):
             except:
                 pass
 
-            # Set learning rate of model - trying a cyclical learning rate
-
-            learning_rate = 1e-3
-            learning_rate = learning_rate * 0.99 ** episode.value
-
-            if episode.value > 250:
-                learning_rate = 1e-4
-                learning_rate = learning_rate * 0.995 ** (episode.value - 250)
-
+            # Set learning rate of model - warm restarts
+            learning_rate = 1e-2
+            if episode.value > 100:
+                learning_rate = 1e-3
             if episode.value > 500:
-                learning_rate = 1e-4
-                learning_rate = learning_rate * 0.995 ** (episode.value - 500)
-            
-            if episode.value > 800:
-                learning_rate = 1e-4
-                learning_rate = learning_rate * 0.999 ** (episode.value - 800)
-                
-            if episode.value > 1500:
-                learning_rate = 1e-4
-                learning_rate = learning_rate * 0.999 ** (episode.value - 800)
+                learning_rate = 5e-4
 
-            print(f'{learning_rate=}')
+            if episode.value > 1000:
+                learning_rate = 3e-4
+                learning_rate = learning_rate * 0.999 ** (episode.value - 1000)
 
+            if episode.value > 2000:
+                learning_rate = 1e-4
+                learning_rate = learning_rate * 0.999 ** (episode.value - 2000)
+
+            lgm = 10
+
+            if episode.value > 1000:
+                lgm = 5
+
+            if episode.value > 2000:
+                lgm = 1
+
+            loss = 0
+
+            # Training Loop
             # Compile model
             losses = {'value_head': 'mse', 'policy_head': tf.nn.softmax_cross_entropy_with_logits}
 
             network.model.compile(loss=losses,
                                     # optimizer=tf.keras.optimizers.Nadam(lr=learning_rate))
-                                  optimizer=tf.keras.optimizers.SGD(lr=learning_rate, 
-                                                                    momentum=0.9, 
+                                  optimizer=tf.keras.optimizers.SGD(lr=learning_rate,
+                                                                    momentum=0.9,
                                                                     nesterov=True))
 
-            # Average loss over 2 batches
-            loss = 0
-            if episode.value < 200:
-                bs = 32
-            elif episode.value < 500:
-                bs = 64
-            elif episode.value < 1000:
-                bs = 128
-            else:
-                bs = 256
-            
+            print(f'{learning_rate=}')
 
-            # Training Loop
-            # Sample 2 batches per episode
-            for _ in range(2):
+            # Sample from ReplayBuffer
+            batch = buffer.sample_batch(long_game_multiplier=lgm)
 
-                # Sample from ReplayBuffer
-                batch = buffer.sample_batch()
+            images, target_v, target_p = batch
+            del losses
+            del batch
 
-                images, target_v, target_p = batch
-                del batch
-                
 
-                h = network.model.fit(x=images, y=[target_v, target_p], batch_size=bs)
-                for i in h.history['loss']:
-                    loss += i
+            h = network.model.fit(x=images, y=[target_v, target_p], batch_size=32, epochs=2)
+            for i in h.history['loss']:
+                loss += i
+            del h
+            del target_p
+            del images
+            del target_v
 
-            print(f'{loss=}')
             w = network.model.get_weights()
             weights[0] = w
 
+            print(f'\n{loss=:.4f}')
+
             if episode.value % 20 == 0:
                 print('Saving buffer to disk')
-                with open('models/AlphaZeroResNet/buffer.pkl', 'wb') as f:
+                with open('models/AlphaZeroResNet/run2_buffer.pkl', 'wb') as f:
                     pickle.dump(buffer, f)
-
-                print('Saving weights to disk')
-                network.model.save_weights(
-                    f'models/AlphaZeroResNet/{episode.value}__loss_{loss}.h5'
-                )
 
                 print('Entering the Pit')
                 wins = pit(network)
-                try:
-                    # save weights to disk if winrate against pit opponent is better than all previous pit evaluations
-                    if float(wins) > float(max(winrate_list)):
-                        network.model.save_weights(
-                            f'models/AlphaZeroResNet/episode_{episode.value}__winrate_{wins}_loss_{loss}.h5'
-                        )
+                print('Saving weights to disk')
 
-                except ValueError:
-                    pass
+                network.model.save_weights(
+                    f'models/AlphaZeroResNet/run3_ep_{episode.value}_lr_{learning_rate:.6f}_wr_{wins}_loss_{loss:.4f}.h5'
+                )
 
                 winrate_list.append(wins)
                 print(winrate_list)
@@ -179,12 +163,9 @@ def train_network(buffer, weights, games, episode, winrate_list, switch):
             episode.value += 1
 
             del network
-            del h
-            del images
-            del target_p
-            del target_v
             del loss
-            del losses
+            del lgm
+            del learning_rate
 
         else:
             selfplay(games, weights)
@@ -213,17 +194,7 @@ def main():
     return
 
 if __name__ == '__main__':
-    # Current number of total epochs trained : 5160
-    buffer_path = '/Users/timwu/models/AlphaZeroResNet/buffer.pkl'
-    with open(buffer_path, 'rb') as f:
-        buffer = pickle.load(f)
-
-    # buffer = ReplayBuffer()
-    #
-    # for game in disk_buffer.buffer:
-    #     buffer.save_game(game)
-
-    print('Loaded')
+    buffer = ReplayBuffer()
 
     MODEL_NAME = "AlphaZeroResNet"
     subdir = f'{MODEL_NAME}'
@@ -232,15 +203,11 @@ if __name__ == '__main__':
     manager = Manager()
     episode = manager.Value(c_int, 1)
     switch = manager.Value(c_bool, True)
-    # lr = manager.Value(c_double, 5e-4)
     winrate_list = manager.list()
 
     games = manager.list()
     weights = manager.list()
-    # weights.append(None)
-    w = r'/Users/timwu/models/AlphaZeroResNet/240__loss_4.0471885204315186.h5'
-    weights.append(w)
-
+    weights.append(None)
     main()
 
 
